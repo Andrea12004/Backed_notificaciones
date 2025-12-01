@@ -13,7 +13,7 @@ const FIREBASE_PROJECT_ID = 'la-despensa-46f5f';
 
 // 📧 CONFIGURACIÓN Gmail (Nodemailer)
 const EMAIL_USER = process.env.EMAIL_USER || 'cardonaandrea644@gmail.com';
-const EMAIL_PASS = process.env.EMAIL_PASS || 'TU_APP_PASSWORD';
+const EMAIL_PASS = process.env.EMAIL_PASS || 'rwjkbqwluvjxyrao';
 
 // Crear transporter de Nodemailer
 const transporter = nodemailer.createTransport({
@@ -335,3 +335,4 @@ setInterval(() => {
   console.log('🏓 Auto-ping');
   fetch(`http://localhost:${PORT}/ping`).catch(() => {});
 }, 14 * 60 * 1000);
+
