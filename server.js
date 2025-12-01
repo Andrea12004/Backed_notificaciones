@@ -285,7 +285,7 @@ app.get('/', (req, res) => {
     mensaje: 'Backend Mi Despensa funcionando',
     hora: new Date().toLocaleString('es-CO'),
     proximaVerificacion: '8:00 AM diario',
-    emailjsConfigured: !!EMAILJS_PRIVATE_KEY && EMAILJS_PRIVATE_KEY !== 'TU_PRIVATE_KEY_AQUI'
+    emailConfigured: EMAIL_PASS !== 'rwjkbqwluvjxyrao'
   });
 });
 
@@ -319,7 +319,7 @@ app.listen(PORT, () => {
   console.log('\n═══════════════════════════════════════');
   console.log('🚀 SERVIDOR INICIADO');
   console.log(`📍 Puerto: ${PORT}`);
-  console.log(`📧 EmailJS: ${EMAILJS_PRIVATE_KEY !== 'TU_PRIVATE_KEY_AQUI' ? 'CONFIGURADO' : 'PENDIENTE'}`);
+  console.log(`📧 Email: ${EMAIL_PASS !== 'rwjkbqwluvjxyrao' ? 'CONFIGURADO ✅' : 'PENDIENTE ⚠️'}`);
   console.log(`⏰ Cron: Diario 8:00 AM (America/Bogota)`);
   console.log('═══════════════════════════════════════\n');
   
@@ -335,4 +335,5 @@ setInterval(() => {
   console.log('🏓 Auto-ping');
   fetch(`http://localhost:${PORT}/ping`).catch(() => {});
 }, 14 * 60 * 1000);
+
 
