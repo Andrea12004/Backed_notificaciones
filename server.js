@@ -13,7 +13,12 @@ const FIREBASE_PROJECT_ID = 'la-despensa-46f5f';
 
 // 📧 CONFIGURACIÓN Gmail (Nodemailer)
 const EMAIL_USER = process.env.EMAIL_USER || 'cardonaandrea644@gmail.com';
-const EMAIL_PASS = process.env.EMAIL_PASS || 'rwjkbqwluvjxyrao';
+const EMAIL_PASS = process.env.EMAIL_PASS;
+
+// Validar que existan las credenciales
+if (!EMAIL_PASS) {
+  console.error('⚠️ ADVERTENCIA: EMAIL_PASS no está configurado en las variables de entorno');
+}
 
 // Crear transporter de Nodemailer
 const transporter = nodemailer.createTransport({
@@ -104,7 +109,7 @@ async function sendEmail(userEmail, productName, daysUntil) {
     console.log('✅ Email enviado:', userEmail, '| ID:', info.messageId);
     return true;
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Error enviando email:', error.message);
     return false;
   }
 }
@@ -285,7 +290,7 @@ app.get('/', (req, res) => {
     mensaje: 'Backend Mi Despensa funcionando',
     hora: new Date().toLocaleString('es-CO'),
     proximaVerificacion: '8:00 AM diario',
-    emailConfigured: EMAIL_PASS !== 'rwjkbqwluvjxyrao'
+    emailConfigured: !!EMAIL_PASS
   });
 });
 
@@ -319,7 +324,7 @@ app.listen(PORT, () => {
   console.log('\n═══════════════════════════════════════');
   console.log('🚀 SERVIDOR INICIADO');
   console.log(`📍 Puerto: ${PORT}`);
-  console.log(`📧 Email: ${EMAIL_PASS !== 'rwjkbqwluvjxyrao' ? 'CONFIGURADO ✅' : 'PENDIENTE ⚠️'}`);
+  console.log(`📧 Email: ${EMAIL_PASS ? 'CONFIGURADO ✅' : 'PENDIENTE ⚠️'}`);
   console.log(`⏰ Cron: Diario 8:00 AM (America/Bogota)`);
   console.log('═══════════════════════════════════════\n');
   
@@ -335,5 +340,3 @@ setInterval(() => {
   console.log('🏓 Auto-ping');
   fetch(`http://localhost:${PORT}/ping`).catch(() => {});
 }, 14 * 60 * 1000);
-
-
