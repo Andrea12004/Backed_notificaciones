@@ -1,7 +1,6 @@
 const express = require('express');
 const cron = require('node-cron');
 const fetch = require('node-fetch');
-const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,45 +10,16 @@ const PORT = process.env.PORT || 3000;
 // ============================================
 const FIREBASE_PROJECT_ID = 'la-despensa-46f5f';
 
-// 📧 CONFIGURACIÓN Gmail (Nodemailer)
-const EMAIL_USER = process.env.EMAIL_USER || 'cardonaandrea644@gmail.com';
-const EMAIL_PASS = process.env.EMAIL_PASS;
+// 📧 CONFIGURACIÓN SendGrid
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+const FROM_EMAIL = 'cardonaandrea644@gmail.com'; // Tu email verificado en SendGrid
 
-// Validar que existan las credenciales
-if (!EMAIL_PASS) {
-  console.error('⚠️ ADVERTENCIA: EMAIL_PASS no está configurado en las variables de entorno');
+if (!SENDGRID_API_KEY) {
+  console.error('⚠️ ADVERTENCIA: SENDGRID_API_KEY no configurada');
 }
 
-// Crear transporter de Nodemailer con configuración mejorada
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // true para 465, false para otros puertos
-  auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: false // Permite certificados autofirmados
-  },
-  connectionTimeout: 10000, // 10 segundos timeout
-  greetingTimeout: 10000,
-});
-
-// Verificar configuración al inicio
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Error configuración email:', error.message);
-    console.error('   Código:', error.code);
-    console.error('   Detalles:', error);
-  } else {
-    console.log('✅ Servidor de email listo para enviar');
-  }
-});
-
 // ============================================
-// 📧 Enviar Email con Nodemailer
+// 📧 Enviar Email con SendGrid
 // ============================================
 async function sendEmail(userEmail, productName, daysUntil) {
   let message, subject, emoji;
@@ -77,7 +47,7 @@ async function sendEmail(userEmail, productName, daysUntil) {
     <html>
     <head>
       <style>
-        body { font-family: Arial, sans-serif; background: #f5f5dc; padding: 20px; }
+        body { font-family: Arial, sans-serif; background: #f5f5dc; padding: 20px; margin: 0; }
         .container { background: white; padding: 40px; border-radius: 15px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #365c36; }
         .emoji { font-size: 64px; margin-bottom: 10px; }
@@ -106,35 +76,47 @@ async function sendEmail(userEmail, productName, daysUntil) {
     </html>
   `;
 
-  const mailOptions = {
-    from: `"Mi Despensa 🏪" <${EMAIL_USER}>`,
-    to: userEmail,
-    subject: subject,
-    text: message,
-    html: htmlContent
-  };
-
   try {
     console.log(`   🔄 Intentando enviar a ${userEmail}...`);
     
-    const info = await transporter.sendMail(mailOptions);
-    
-    console.log(`   ✅ Email enviado: ${userEmail} | ID: ${info.messageId}`);
-    return true;
-  } catch (error) {
-    console.error(`   ❌ Error enviando email a ${userEmail}:`);
-    console.error(`      Código: ${error.code}`);
-    console.error(`      Mensaje: ${error.message}`);
-    
-    // Errores comunes y sus soluciones
-    if (error.code === 'EAUTH') {
-      console.error('      💡 Solución: Verifica que EMAIL_PASS sea la App Password correcta (16 caracteres sin espacios)');
-    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNECTION') {
-      console.error('      💡 Solución: Problema de conexión con Gmail. Intenta de nuevo.');
-    } else if (error.code === 'EMESSAGE') {
-      console.error('      💡 Solución: Problema con el formato del mensaje.');
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email: userEmail }],
+          subject: subject
+        }],
+        from: {
+          email: FROM_EMAIL,
+          name: 'Mi Despensa 🏪'
+        },
+        content: [
+          {
+            type: 'text/plain',
+            value: message
+          },
+          {
+            type: 'text/html',
+            value: htmlContent
+          }
+        ]
+      })
+    });
+
+    if (response.ok || response.status === 202) {
+      console.log(`   ✅ Email enviado: ${userEmail}`);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.error(`   ❌ Error enviando email:`, response.status, errorText);
+      return false;
     }
-    
+  } catch (error) {
+    console.error(`   ❌ Error en sendEmail:`, error.message);
     return false;
   }
 }
@@ -284,7 +266,7 @@ async function verificarProductos() {
           }
           
           // Pausa entre emails
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise(r => setTimeout(r, 1000));
         }
       }
     }
@@ -298,7 +280,6 @@ async function verificarProductos() {
 
   } catch (error) {
     console.error('❌ ERROR GENERAL:', error.message);
-    console.error('   Stack:', error.stack);
   }
 }
 
@@ -321,37 +302,28 @@ app.get('/', (req, res) => {
     mensaje: 'Backend Mi Despensa funcionando',
     hora: new Date().toLocaleString('es-CO'),
     proximaVerificacion: '8:00 AM diario',
-    emailConfigured: !!EMAIL_PASS,
-    emailUser: EMAIL_USER
+    emailSystem: 'SendGrid',
+    emailConfigured: !!SENDGRID_API_KEY
   });
 });
 
 app.get('/verificar-ahora', async (req, res) => {
   console.log('🔍 Verificación manual solicitada');
   verificarProductos();
-  res.json({ mensaje: 'Verificación iniciada - revisa los logs en la consola' });
+  res.json({ mensaje: 'Verificación iniciada - revisa los logs' });
 });
 
 app.get('/test-email', async (req, res) => {
   const testEmail = req.query.email || 'cardonaandrea644@gmail.com';
   console.log('📧 Enviando email de prueba a:', testEmail);
   
-  try {
-    const success = await sendEmail(testEmail, 'Producto de Prueba', 3);
-    
-    res.json({ 
-      success,
-      mensaje: success ? 'Email enviado correctamente - revisa tu bandeja' : 'Error enviando email - revisa los logs',
-      email: testEmail,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      mensaje: 'Error al intentar enviar email'
-    });
-  }
+  const success = await sendEmail(testEmail, 'Producto de Prueba', 3);
+  
+  res.json({ 
+    success,
+    mensaje: success ? 'Email enviado - revisa tu bandeja' : 'Error enviando email',
+    email: testEmail
+  });
 });
 
 app.get('/ping', (req, res) => {
@@ -365,8 +337,7 @@ app.listen(PORT, () => {
   console.log('\n═══════════════════════════════════════');
   console.log('🚀 SERVIDOR INICIADO');
   console.log(`📍 Puerto: ${PORT}`);
-  console.log(`📧 Email User: ${EMAIL_USER}`);
-  console.log(`📧 Email Pass: ${EMAIL_PASS ? 'CONFIGURADO ✅' : 'FALTA ⚠️'}`);
+  console.log(`📧 SendGrid: ${SENDGRID_API_KEY ? 'CONFIGURADO ✅' : 'NO CONFIGURADO ⚠️'}`);
   console.log(`⏰ Cron: Diario 8:00 AM (America/Bogota)`);
   console.log('═══════════════════════════════════════\n');
   
@@ -377,7 +348,7 @@ app.listen(PORT, () => {
   }, 10000);
 });
 
-// Auto-ping cada 14 minutos para mantener activo
+// Auto-ping cada 14 minutos
 setInterval(() => {
   console.log('🏓 Auto-ping');
   fetch(`http://localhost:${PORT}/ping`).catch(() => {});
