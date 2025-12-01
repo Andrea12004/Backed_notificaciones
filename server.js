@@ -1,6 +1,7 @@
 const express = require('express');
 const cron = require('node-cron');
 const fetch = require('node-fetch');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,66 +11,98 @@ const PORT = process.env.PORT || 3000;
 // ============================================
 const FIREBASE_PROJECT_ID = 'la-despensa-46f5f';
 
-// 📧 CONFIGURACIÓN EmailJS - IMPORTANTE: Usar API PRIVADA
-const EMAILJS_SERVICE_ID = 'service_cnriqls';
-const EMAILJS_TEMPLATE_ID = 'template_auzavs5';
-const EMAILJS_PUBLIC_KEY = 'TZAwQh_SmAVCxqk0a';
-// ⚠️ NECESITAS TU PRIVATE KEY - La encuentras en:
-// https://dashboard.emailjs.com/admin/account
-const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY || 'QtWDB-9c2zK0vzzFFC9Pz';
+// 📧 CONFIGURACIÓN Gmail (Nodemailer)
+const EMAIL_USER = process.env.EMAIL_USER || 'cardonaandrea644@gmail.com';
+const EMAIL_PASS = process.env.EMAIL_PASS || 'TU_APP_PASSWORD';
+
+// Crear transporter de Nodemailer
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS
+  }
+});
+
+// Verificar configuración al inicio
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Error configuración email:', error.message);
+  } else {
+    console.log('✅ Servidor de email listo para enviar');
+  }
+});
 
 // ============================================
-// 📧 Enviar Email con EmailJS API PRIVADA
+// 📧 Enviar Email con Nodemailer
 // ============================================
 async function sendEmail(userEmail, productName, daysUntil) {
-  let message, subject;
+  let message, subject, emoji;
 
   if (daysUntil < 0) {
-    subject = `⚠️ Vencido: ${productName}`;
-    message = `"${productName}" venció hace ${Math.abs(daysUntil)} día(s).`;
+    subject = `⚠️ Producto Vencido - Mi Despensa`;
+    emoji = '⚠️';
+    message = `Tu producto "${productName}" venció hace ${Math.abs(daysUntil)} día(s).`;
   } else if (daysUntil === 0) {
-    subject = `🚨 VENCE HOY: ${productName}`;
-    message = `"${productName}" vence HOY!`;
+    subject = `🚨 ¡Vence HOY! - Mi Despensa`;
+    emoji = '🚨';
+    message = `¡Tu producto "${productName}" vence HOY!`;
   } else if (daysUntil <= 3) {
-    subject = `⏰ Vence pronto: ${productName}`;
-    message = `"${productName}" vence en ${daysUntil} día(s).`;
+    subject = `⏰ Próximo a Vencer - Mi Despensa`;
+    emoji = '⏰';
+    message = `Tu producto "${productName}" vence en ${daysUntil} día(s).`;
   } else {
-    subject = `📅 Recordatorio: ${productName}`;
-    message = `"${productName}" vence en ${daysUntil} días.`;
+    subject = `📅 Recordatorio de Vencimiento - Mi Despensa`;
+    emoji = '📅';
+    message = `Tu producto "${productName}" vence en ${daysUntil} días.`;
   }
 
-  try {
-    // ✅ USAR API PRIVADA - Incluir accessToken en el body
-    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        service_id: EMAILJS_SERVICE_ID,
-        template_id: EMAILJS_TEMPLATE_ID,
-        user_id: EMAILJS_PUBLIC_KEY,
-        // ✅ CLAVE: Agregar accessToken para backend
-        accessToken: EMAILJS_PRIVATE_KEY,
-        template_params: {
-          to_email: userEmail,
-          product_name: productName,
-          days_until: daysUntil,
-          message: message,
-          subject: subject,
-        },
-      }),
-    });
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; background: #f5f5dc; padding: 20px; }
+        .container { background: white; padding: 40px; border-radius: 15px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #365c36; }
+        .emoji { font-size: 64px; margin-bottom: 10px; }
+        .logo { color: #365c36; font-size: 32px; font-weight: bold; margin-bottom: 10px; }
+        .message-box { background: #f5f5f5; padding: 24px; border-radius: 10px; margin: 20px 0; }
+        .product-name { font-size: 24px; font-weight: bold; color: #365c36; margin-bottom: 10px; }
+        .message { font-size: 18px; color: #333; line-height: 1.6; margin-top: 10px; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #888; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="emoji">${emoji}</div>
+          <div class="logo">🏪 Mi Despensa</div>
+        </div>
+        <div class="message-box">
+          <div class="product-name">📦 ${productName}</div>
+          <div class="message">${message}</div>
+        </div>
+        <div class="footer">
+          <p><strong>Mi Despensa</strong> - Tu asistente de cocina inteligente</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 
-    if (response.ok) {
-      console.log('✅ Email enviado a:', userEmail);
-      return true;
-    }
-    
-    const errorText = await response.text();
-    console.error('❌ Error enviando email:', response.status, errorText);
-    return false;
-    
+  const mailOptions = {
+    from: `"Mi Despensa 🏪" <${EMAIL_USER}>`,
+    to: userEmail,
+    subject: subject,
+    text: message,
+    html: htmlContent
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email enviado:', userEmail, '| ID:', info.messageId);
+    return true;
   } catch (error) {
     console.error('❌ Error:', error.message);
     return false;
